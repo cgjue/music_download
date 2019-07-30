@@ -1,0 +1,207 @@
+<!<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Music Download</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" media="screen" href="/static/main.css" />
+    <script src="/static/jquery-3.3.1.js"></script>
+    <script src="/static/jquery.pjax.js"></script>
+    <script src="/static/vue.min.js"></script>
+</head>
+<body style="background-color: rgb(39, 31, 22);">
+    <div id='app'>
+        <div class="header">
+            <h2 class="title">Jue's Music Player</h2>
+            <audio class="audio" v-bind:src='player.audio_src'
+             v-on:ended='play_next($event)' controls autoplay></audio>
+        </div>
+        <!--<div>
+            歌词信息
+        </div>-->
+    <div class="container">
+        <div class="leftbar">
+            <ul class="mod_player">
+                <li><a href="#music_down" class="mod_btn"><i class="mod_btn_green__icon_down"></i>音乐下载</a></li>
+                <li><a href="#music_local" class="mod_btn"><i class="mod_btn_green__icon_like"></i>本地音乐</a></li>
+            </ul>
+            
+        </div>
+        <div class="main">
+            <div class="search">
+                <div class="select_ui" v-on:click='searchDict.show = !searchDict.show' v-on:blur='searchDict.show = false' tabindex="-1" focusable>
+                    <span v-text="searchDict.select"></span>
+                    <ul class="skill" v-show="searchDict.show">
+                        <li v-for='(val, index) in searchDict.value' v-on:click='select_li(index)'><a v-text="val"></a></li>
+                    </ul>
+                </div>
+                
+                <input v-model="searchKey.keywords" class="mod_btn mod_btn__input"/>
+                <button v-on:click='search(0)' class="mod_btn mod_btn_green">search</button>
+                <ul v-if="searchResult.songCount > searchKey.limit" class="pager">
+                    <li class="previous" v-if="searchKey.offset > 0">
+                        <button v-on:click="search(searchKey.offset -1)" class="mod_btn mod_btn_green">上一页</button>
+                    </li>
+                    <li class="next" v-if="searchResult.songCount > searchKey.offset*searchKey.limit">
+                        <button v-on:click="search(searchKey.offset + 1)" class="mod_btn mod_btn_green">下一页</a></li>
+                    <li><input type="number" v-model="searchKey.goto" min="0" v-bind:max="searchResult.songCount/searchKey.limit">
+                        <button v-on:click="search(searchKey.goto)" class="mod_btn mod_btn_green">跳转</button>
+                    </li>
+                </ul>
+            </div>
+            <div class="content">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th style="width:20px">全选/保存</th>
+                            <th style="width:20%">歌曲</th>
+                            <th style="width:20%">歌手</th>
+                            <th style="width:20%">专辑</th>
+                            <th style="width:20%"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template v-for="(song, index) in searchResult.songs">
+                            <tr v-on:foucs="">
+                                <td v-text="song.id"></td>
+                                <td v-text="song.name"></td>
+                                <td v-text="song.artists[0].name"></td>
+                                <td v-text="song.album.name"></td>
+                                <td>
+                                    <div class="list_menu__item">
+                                        <i class="list_menu__icon_play" v-on:click="play(song.id, index, $event)"></i>
+                                        <span style="margin:0px 20px"></span>
+                                        <i class="list_menu__icon_down" v-on:click="save(song.id, index, $event)"></i>
+                                    </div>
+                                </td>
+                                
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+               
+            </div>
+            <div class="lyric">
+                lyric here developing
+            </div>    
+    </div>
+   
+</body>
+<script>
+    var app = new Vue({
+      el: '#app',
+      data: {
+        searchKey:{
+            keywords: '',
+            stype: 1, 
+            offset: 0, 
+            limit: 15,
+            goto:0
+        },
+        searchDict: {
+            key: [1, 100, 10, 1000],
+            value: ["歌曲", "歌手", "专辑", "歌单"],
+            select:'歌曲',
+            show: false
+        },
+        searchResult:{},
+        player:{
+            plist:[],
+            cur:0,
+            audio_src: '',
+        },
+        filetype:{}
+      },
+      mounted:function(){
+        this.load();
+      },
+      methods:{
+        load: function(){
+            var _this = this;
+            $.get('/static/filetype.json', function(ret){
+                _this.filetype = ret;
+            })
+        },
+        select_li: function(index){
+            this.searchKey.stype = this.searchDict.key[index];
+            console.log(this.searchKey.stype)
+            this.searchDict.select = this.searchDict.value[index];
+            console.log(this.searchDict.select)
+        },
+        search: function(offset){
+            var _this = this;
+            _this.searchKey.offset = offset;
+            $.get('/search', _this.searchKey, function(ret){
+                console.log(ret);
+                if(ret.status){
+                    _this.searchResult = ret.res;
+
+                }
+            })
+        },
+        play: function(songid, index, event){
+            var _this = this;
+            if($(event.target).hasClass('list_menu__icon_pause')){
+                $('audio')[0].pause();
+                $(event.target).addClass('list_menu__icon_play').removeClass('list_menu__icon_pause');
+                return;
+            }else if(!!_this.player.audio_src&&_this.player.cur==index){
+                $('audio')[0].play();
+                $(event.target).addClass('list_menu__icon_pause').removeClass('list_menu__icon_play');
+                return;
+            }
+            var i_s = $($($('table tbody tr')[_this.player.cur]).find('i')[0])
+            if(i_s.hasClass('list_menu__icon_pause')){
+                i_s.addClass('list_menu__icon_play').removeClass('list_menu__icon_pause');
+            }
+            $.get('/play', {'songid': songid}, function(ret){
+                //console.log(ret);
+                if(ret.status){
+                    var song = ret.res[0];
+                    _this.player.plist[index] = song;
+                    _this.player.cur = index;
+                    _this.player.audio_src = song.url;
+                    $(event.target).addClass('list_menu__icon_pause').removeClass('list_menu__icon_play');
+                }
+            })
+        },
+        save: function(songid, index, event){
+            var _this = this;
+            var song = _this.searchResult.songs[index];
+            
+            var savename = song.name + '_' + song.artists[0].name+ '_' 
+                + song.album.name
+            $.get('/download', {'songid': songid, 'savename': savename}, function(ret){
+                console.log(ret);
+                if(ret.status){
+                    
+                }
+                
+            })
+        },
+        download: function(songids){
+            var _this = this;
+            $.post('/download', {'songids': JSON.stringify(songids)}, function(ret){
+                console.log(ret);
+                /*if(ret.status){
+                    _this.searchResult = ret.res;
+                }*/
+            })
+        },
+        play_next: function(event){
+            var _this = this;
+            if(_this.player.plist.length<1) return;
+            var cur = _this.player.cur;
+            while(1){
+                cur = (cur+1) % (_this.player.plist.length);
+                if(!!_this.player.plist[cur])break;
+            }
+            _this.player.cur = cur;
+            _this.player.audio_src = _this.player.plist[cur].url;
+            
+        }
+      }
+    })
+</script>
+</html>
